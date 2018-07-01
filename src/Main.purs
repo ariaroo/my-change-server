@@ -72,7 +72,9 @@ handleCustomerLogin req res outStream = do
     
     liftEffect $ log $ encodeJSON users
 
+    liftEffect $ setStatusCode res 200
     liftEffect $ setHeader res "Content-Type" "text/plain"
+    
     _ <- liftEffect $ writeString outStream UTF8 (encodeJSON users) (pure unit)
     liftEffect $ end outStream (pure unit)
   
@@ -87,7 +89,9 @@ handleCustomerSignup req res outStream = do
     
     liftEffect $ log $ encodeJSON users
 
+    liftEffect $ setStatusCode res 200
     liftEffect $ setHeader res "Content-Type" "text/plain"
+    
     _ <- liftEffect $ writeString outStream UTF8 "Foob return" (pure unit)
     liftEffect $ end outStream (pure unit)
   
@@ -96,19 +100,10 @@ handleCustomerSignup req res outStream = do
 
 router :: Request -> Response -> Effect Unit
 router req res = do
-  setStatusCode res 200
-
   let inputStream  = requestAsStream req
       outputStream = responseAsStream res
-  log (requestMethod req <> " " <> requestURL req)
 
   case requestMethod req of
-    -- "GET" -> do
-    --   handleCustomerLogin req res outputStream
-    -- "POST" -> void $ pipe inputStream outputStream
-
-    "GET" -> do
-      handleCustomerLogin req res outputStream
     "POST" -> do
       log ""
       log $ "Request path: " <> (requestURL req)
@@ -125,9 +120,7 @@ router req res = do
 
 main :: Effect Unit
 main = do
-  log "Hello sailor!"
-
   app <- createServer router
-  listen app { hostname: "localhost", port: 8080, backlog: Nothing } $ void do
+  listen app { hostname: "localhost", port: 8080, backlog: Nothing } $ do
     log "Server setup done!"
     log "Listening on port 8080."
