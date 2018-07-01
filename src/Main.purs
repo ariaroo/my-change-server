@@ -8,7 +8,10 @@ import Data.Either (Either(..))
 import Data.Foldable (oneOf)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
+import Data.Map as M
 import Data.Maybe (Maybe(..))
+import Data.String (stripPrefix)
+import Data.String.CodeUnits (drop)
 import Database.Postgres (ClientConfig, ConnectionInfo, Query(Query), connectionInfoFromConfig, defaultPoolConfig, end, mkPool, query_, withClient) as Pg
 import Effect (Effect)
 import Effect.Aff (launchAff_)
@@ -23,8 +26,26 @@ import Node.HTTP (Request, Response, listen, createServer, setHeader, requestMet
 import Node.Stream (Stream, Write, Writable, end, pipe, writeString)
 import Partial.Unsafe (unsafeCrashWith)
 import Routing (match)
-import Routing.Match (Match, lit, nonempty, str)
+import Routing.Match (Match, lit, nonempty, num, str, params)
 import Simple.JSON as JSON
+
+
+clientConfig :: Pg.ClientConfig
+clientConfig =
+  { host: "localhost"
+  , database: "mychangedb"
+  , port: 5432
+  , user: "postgres"
+  , password: "asdffdsa"
+  , ssl: false
+  }
+
+connectionInfo :: Pg.ConnectionInfo
+connectionInfo = Pg.connectionInfoFromConfig clientConfig Pg.defaultPoolConfig
+
+read' :: forall a. JSON.ReadForeign a => Foreign -> Either Error a
+read' = lmap (error <<< show) <<< JSON.read
+
 
 
 data PostRoutes
@@ -37,8 +58,8 @@ instance showMyRoutes :: Show PostRoutes where show = genericShow
 
 routing :: Match PostRoutes
 routing = oneOf
-  [ CustomerLogin <$> (lit "api/v1/customerlogin")
-  , CustomerSignup <$> (lit "api/v1/customersignup")
+  [ CustomerLogin <$> (lit "api" *> lit "v1" *> lit "customerlogin")
+  , CustomerSignup <$> (lit "api" *> lit "v1" *> lit "customersignup")
   ]
 
 
@@ -57,15 +78,20 @@ handleCustomerLogin req res outStream = do
   
   Pg.end pool
 
+handleCustomerSignup :: forall a. Request -> Response -> (Writable a) -> Effect Unit
+handleCustomerSignup req res outStream = do
+  pool <- Pg.mkPool connectionInfo
 
-main :: Effect Unit
-main = do
-  log "Hello sailor!"
+  launchAff_ $ Pg.withClient pool $ \conn -> do
+    users <- Pg.query_ read' (Pg.Query "select * from users order by first_name desc" :: Pg.Query User) conn
+    
+    liftEffect $ log $ encodeJSON users
 
-  app <- createServer router
-  listen app { hostname: "localhost", port: 8080, backlog: Nothing } $ void do
-    log "Server setup done!"
-    log "Listening on port 8080."
+    liftEffect $ setHeader res "Content-Type" "text/plain"
+    _ <- liftEffect $ writeString outStream UTF8 "Foob return" (pure unit)
+    liftEffect $ end outStream (pure unit)
+  
+  Pg.end pool
 
 
 router :: Request -> Response -> Effect Unit
@@ -83,29 +109,25 @@ router req res = do
 
     "GET" -> do
       handleCustomerLogin req res outputStream
-    "POST" -> 
-      -- handleCustomerLogin req res outputStream
-    -- log $ show $ (match routing (requestURL req))
+    "POST" -> do
+      log ""
+      log $ "Request path: " <> (requestURL req)
+      log $ show $ (match routing $ ((drop 1) <<< requestURL) req)
 
-    case (match routing (requestURL req)) of 
-      Right (CustomerLogin _) -> 
-        handleCustomerLogin req res outputStream
-      _ -> void $ pipe inputStream outputStream
+      case match routing $ ((drop 1) <<< requestURL) req of 
+        Right (CustomerLogin _) -> 
+          handleCustomerLogin req res outputStream
+        Right (CustomerSignup _) -> 
+          handleCustomerSignup req res outputStream
+
+        _ -> void $ pipe inputStream outputStream
     _ -> unsafeCrashWith "Unexpected HTTP method"
 
+main :: Effect Unit
+main = do
+  log "Hello sailor!"
 
-clientConfig :: Pg.ClientConfig
-clientConfig =
-  { host: "localhost"
-  , database: "mychangedb"
-  , port: 5432
-  , user: "postgres"
-  , password: "asdffdsa"
-  , ssl: false
-  }
-
-connectionInfo :: Pg.ConnectionInfo
-connectionInfo = Pg.connectionInfoFromConfig clientConfig Pg.defaultPoolConfig
-
-read' :: forall a. JSON.ReadForeign a => Foreign -> Either Error a
-read' = lmap (error <<< show) <<< JSON.read
+  app <- createServer router
+  listen app { hostname: "localhost", port: 8080, backlog: Nothing } $ void do
+    log "Server setup done!"
+    log "Listening on port 8080."
