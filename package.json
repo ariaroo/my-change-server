@@ -1,5 +1,6 @@
 {
   "name": "my-change-server",
+  "description": "Purescript replica of a project I wrote in vanilla Javascript",
   "dependencies": {
     "decimal.js": "^10.0.0",
     "pg": "^6.4.2",
