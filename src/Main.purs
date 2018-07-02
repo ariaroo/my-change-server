@@ -54,7 +54,8 @@ data PostRoutes
 
 derive instance eqMyRoutes :: Eq PostRoutes
 derive instance genericMyRoutes :: Generic PostRoutes _
-instance showMyRoutes :: Show PostRoutes where show = genericShow
+instance showMyRoutes :: Show PostRoutes where 
+  show = genericShow
 
 routing :: Match PostRoutes
 routing = oneOf
@@ -100,15 +101,13 @@ handleCustomerSignup req res outStream = do
 
 router :: Request -> Response -> Effect Unit
 router req res = do
+  log $ "Request path: " <> show (match routing $ ((drop 1) <<< requestURL) req)
+
   let inputStream  = requestAsStream req
       outputStream = responseAsStream res
 
   case requestMethod req of
     "POST" -> do
-      log ""
-      log $ "Request path: " <> (requestURL req)
-      log $ show $ (match routing $ ((drop 1) <<< requestURL) req)
-
       case match routing $ ((drop 1) <<< requestURL) req of 
         Right (CustomerLogin _) -> 
           handleCustomerLogin req res outputStream
@@ -122,5 +121,4 @@ main :: Effect Unit
 main = do
   app <- createServer router
   listen app { hostname: "localhost", port: 8080, backlog: Nothing } $ do
-    log "Server setup done!"
-    log "Listening on port 8080."
+    log "Server listening on port 8080."
