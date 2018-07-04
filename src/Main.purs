@@ -12,7 +12,7 @@ import Data.Map as M
 import Data.Maybe (Maybe(..))
 import Data.String (stripPrefix)
 import Data.String.CodeUnits (drop)
-import Database.Postgres (ClientConfig, ConnectionInfo, Query(Query), connectionInfoFromConfig, defaultPoolConfig, end, mkPool, query_, withClient) as Pg
+import Database.Postgres (ClientConfig, ConnectionInfo, Query(Query), connectionInfoFromConfig, Pool, defaultPoolConfig, end, mkPool, query_, withClient) as Pg
 import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Effect.Class (liftEffect)
@@ -64,10 +64,8 @@ routing = oneOf
   ]
 
 
-handleCustomerLogin :: forall a. Request -> Response -> (Writable a) -> Effect Unit
-handleCustomerLogin req res outStream = do
-  pool <- Pg.mkPool connectionInfo
-
+handleCustomerLogin :: Request -> Response -> Pg.Pool -> Effect Unit
+handleCustomerLogin req res pool = do
   launchAff_ $ Pg.withClient pool $ \conn -> do
     users <- Pg.query_ read' (Pg.Query "select * from users order by first_name desc" :: Pg.Query User) conn
     
@@ -75,16 +73,14 @@ handleCustomerLogin req res outStream = do
 
     liftEffect $ setStatusCode res 200
     liftEffect $ setHeader res "Content-Type" "text/plain"
-    
-    _ <- liftEffect $ writeString outStream UTF8 (encodeJSON users) (pure unit)
-    liftEffect $ end outStream (pure unit)
-  
-  Pg.end pool
 
-handleCustomerSignup :: forall a. Request -> Response -> (Writable a) -> Effect Unit
-handleCustomerSignup req res outStream = do
-  pool <- Pg.mkPool connectionInfo
+    let oStream = responseAsStream res    
+    _ <- liftEffect $ writeString oStream UTF8 (encodeJSON users) (pure unit)
 
+    liftEffect $ end oStream (pure unit)
+
+handleCustomerSignup :: Request -> Response -> Pg.Pool -> Effect Unit
+handleCustomerSignup req res pool = do
   launchAff_ $ Pg.withClient pool $ \conn -> do
     users <- Pg.query_ read' (Pg.Query "select * from users order by first_name desc" :: Pg.Query User) conn
     
@@ -92,33 +88,33 @@ handleCustomerSignup req res outStream = do
 
     liftEffect $ setStatusCode res 200
     liftEffect $ setHeader res "Content-Type" "text/plain"
-    
-    _ <- liftEffect $ writeString outStream UTF8 "Foob return" (pure unit)
-    liftEffect $ end outStream (pure unit)
-  
-  Pg.end pool
+
+    let oStream = responseAsStream res    
+    _ <- liftEffect $ writeString oStream UTF8 "Foob return" (pure unit)
+
+    liftEffect $ end oStream (pure unit)
 
 
-router :: Request -> Response -> Effect Unit
-router req res = do
+router :: Request -> Response -> Pg.Pool -> Effect Unit
+router req res pool = do
   log $ "Request path: " <> show (match routing $ ((drop 1) <<< requestURL) req)
-
-  let inputStream  = requestAsStream req
-      outputStream = responseAsStream res
 
   case requestMethod req of
     "POST" -> do
       case match routing $ ((drop 1) <<< requestURL) req of 
         Right (CustomerLogin _) -> 
-          handleCustomerLogin req res outputStream
+          handleCustomerLogin req res pool
         Right (CustomerSignup _) -> 
-          handleCustomerSignup req res outputStream
+          handleCustomerSignup req res pool
 
-        _ -> void $ pipe inputStream outputStream
+        _ -> void $ pipe (requestAsStream req) (responseAsStream res)
     _ -> unsafeCrashWith "Unexpected HTTP method"
+
 
 main :: Effect Unit
 main = do
-  app <- createServer router
+  pool <- Pg.mkPool connectionInfo
+
+  app <- createServer (\req res -> router req res pool)
   listen app { hostname: "localhost", port: 8080, backlog: Nothing } $ do
     log "Server listening on port 8080."
