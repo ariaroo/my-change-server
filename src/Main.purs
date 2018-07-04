@@ -22,6 +22,7 @@ import Foreign (Foreign)
 import Foreign.Generic (encodeJSON)
 import Models (User)
 import Node.Encoding (Encoding(..))
+import Node.FS.Aff (readTextFile)
 import Node.HTTP (Request, Response, listen, createServer, setHeader, requestMethod, requestURL, responseAsStream, requestAsStream, setStatusCode)
 import Node.Stream (Stream, Write, Writable, end, pipe, writeString)
 import Partial.Unsafe (unsafeCrashWith)
@@ -29,19 +30,9 @@ import Routing (match)
 import Routing.Match (Match, lit, nonempty, num, str, params)
 import Simple.JSON as JSON
 
+import Data.Bifunctor (lmap)
+import Control.Monad.Except (runExcept)
 
-clientConfig :: Pg.ClientConfig
-clientConfig =
-  { host: "localhost"
-  , database: "mychangedb"
-  , port: 5432
-  , user: "postgres"
-  , password: "asdffdsa"
-  , ssl: false
-  }
-
-connectionInfo :: Pg.ConnectionInfo
-connectionInfo = Pg.connectionInfoFromConfig clientConfig Pg.defaultPoolConfig
 
 read' :: forall a. JSON.ReadForeign a => Foreign -> Either Error a
 read' = lmap (error <<< show) <<< JSON.read
@@ -69,30 +60,32 @@ handleCustomerLogin req res pool = do
   launchAff_ $ Pg.withClient pool $ \conn -> do
     users <- Pg.query_ read' (Pg.Query "select * from users order by first_name desc" :: Pg.Query User) conn
     
-    liftEffect $ log $ encodeJSON users
+    liftEffect $ do
+      log $ encodeJSON users
 
-    liftEffect $ setStatusCode res 200
-    liftEffect $ setHeader res "Content-Type" "text/plain"
+      setStatusCode res 200
+      setHeader res "Content-Type" "text/plain"
 
-    let oStream = responseAsStream res    
-    _ <- liftEffect $ writeString oStream UTF8 (encodeJSON users) (pure unit)
+      let oStream = responseAsStream res    
+      _ <- writeString oStream UTF8 (encodeJSON users) (pure unit)
 
-    liftEffect $ end oStream (pure unit)
+      end oStream (pure unit)
 
 handleCustomerSignup :: Request -> Response -> Pg.Pool -> Effect Unit
 handleCustomerSignup req res pool = do
   launchAff_ $ Pg.withClient pool $ \conn -> do
     users <- Pg.query_ read' (Pg.Query "select * from users order by first_name desc" :: Pg.Query User) conn
     
-    liftEffect $ log $ encodeJSON users
+    liftEffect $ do 
+      log $ encodeJSON users
 
-    liftEffect $ setStatusCode res 200
-    liftEffect $ setHeader res "Content-Type" "text/plain"
+      setStatusCode res 200
+      setHeader res "Content-Type" "text/plain"
 
-    let oStream = responseAsStream res    
-    _ <- liftEffect $ writeString oStream UTF8 "Foob return" (pure unit)
+      let oStream = responseAsStream res    
+      _ <- writeString oStream UTF8 "Foob return" (pure unit)
 
-    liftEffect $ end oStream (pure unit)
+      end oStream (pure unit)
 
 
 router :: Request -> Response -> Pg.Pool -> Effect Unit
@@ -111,10 +104,23 @@ router req res pool = do
     _ -> unsafeCrashWith "Unexpected HTTP method"
 
 
-main :: Effect Unit
-main = do
-  pool <- Pg.mkPool connectionInfo
+getDbConfig :: String -> Either String Pg.ClientConfig
+getDbConfig s = lmap show (JSON.readJSON s)
 
-  app <- createServer (\req res -> router req res pool)
-  listen app { hostname: "localhost", port: 8080, backlog: Nothing } $ do
-    log "Server listening on port 8080."
+main :: Effect Unit
+main = launchAff_ $ do 
+  contents <- readTextFile UTF8 "./config/dbDev.json"
+
+  liftEffect $ do
+    -- log ("\nconfig contents: " <> contents)
+
+    case getDbConfig contents of
+      Left error -> do
+        log error
+      Right clientConfig -> do
+        -- log $ "\ndatabase: " <> (show clientConfig.database)
+        dbPool <- Pg.mkPool $ Pg.connectionInfoFromConfig clientConfig Pg.defaultPoolConfig
+
+        app <- createServer (\req res -> router req res dbPool)
+        listen app { hostname: "localhost", port: 8080, backlog: Nothing } $ do
+          log "Server listening on port 8080."
