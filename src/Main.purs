@@ -42,6 +42,7 @@ import FFI.UUID as UUID
 import FFI.BCrypt as BCrypt
 
 
+
 read' :: forall a. JSON.ReadForeign a => Foreign -> Either Error a
 read' = lmap (error <<< show) <<< JSON.read
 
