@@ -2,6 +2,7 @@
   "name": "my-change-server",
   "description": "Purescript replica of a project I wrote in vanilla Javascript",
   "dependencies": {
+    "bcrypt": "^3.0.0",
     "decimal.js": "^10.0.0",
     "jsonwebtoken": "^8.3.0",
     "pg": "^6.4.2",

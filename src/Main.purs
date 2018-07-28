@@ -39,6 +39,7 @@ import Routing.Match (Match, lit, nonempty, num, str, params)
 import Simple.JSON as JSON
 
 import UUID as UUID
+import BCrypt as BCrypt
 
 read' :: forall a. JSON.ReadForeign a => Foreign -> Either Error a
 read' = lmap (error <<< show) <<< JSON.read
@@ -123,6 +124,10 @@ main = launchAff_ $ do
     -- )
 
     log $ (UUID.get)
+    let newPasswordHash = BCrypt.getPasswordHash "asdffdsa"
+    log $ "Password hash: " <> newPasswordHash
+    let isPasswordCorrect = BCrypt.isPasswordCorrect "asdffdsa" newPasswordHash
+    logShow isPasswordCorrect
 
     -- log ("\nconfig contents: " <> contents)
 
