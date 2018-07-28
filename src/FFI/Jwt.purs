@@ -1,4 +1,4 @@
-module Jwt (verify) where
+module FFI.Jwt (verify) where
 
 import Prelude
 

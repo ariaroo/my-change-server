@@ -27,7 +27,6 @@ import Foreign.Class (class Decode, class Encode)
 import Foreign.Generic (defaultOptions, genericDecode, genericEncode)
 import Foreign.Generic (encodeJSON)
 import Foreign.Generic.Types (Options)
-import Jwt (verify)
 import Models (User)
 import Node.Encoding (Encoding(..))
 import Node.FS.Aff (readTextFile)
@@ -38,8 +37,9 @@ import Routing (match)
 import Routing.Match (Match, lit, nonempty, num, str, params)
 import Simple.JSON as JSON
 
-import UUID as UUID
-import BCrypt as BCrypt
+import FFI.Jwt (verify)
+import FFI.UUID as UUID
+import FFI.BCrypt as BCrypt
 
 read' :: forall a. JSON.ReadForeign a => Foreign -> Either Error a
 read' = lmap (error <<< show) <<< JSON.read
@@ -123,7 +123,8 @@ main = launchAff_ $ do
     --   logShow $ (unsafeFromForeign x :: JwtPayload)
     -- )
 
-    log $ (UUID.get)
+    log $ "New uuid: " <> (UUID.get)
+
     let newPasswordHash = BCrypt.getPasswordHash "asdffdsa"
     log $ "Password hash: " <> newPasswordHash
     let isPasswordCorrect = BCrypt.isPasswordCorrect "asdffdsa" newPasswordHash
