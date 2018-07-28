@@ -2,11 +2,14 @@ module Main where
 
 import Prelude
 
+import Control.Monad.Except (runExcept)
 import Control.Plus (empty)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Foldable (oneOf)
 import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep.Show (genericShow)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Map as M
 import Data.Maybe (Maybe(..))
@@ -16,10 +19,15 @@ import Database.Postgres (ClientConfig, ConnectionInfo, Query(Query), connection
 import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Effect.Class (liftEffect)
+import Effect.Class.Console (logShow)
 import Effect.Console (log)
 import Effect.Exception (error, Error)
-import Foreign (Foreign)
+import Foreign (Foreign, unsafeFromForeign)
+import Foreign.Class (class Decode, class Encode)
+import Foreign.Generic (defaultOptions, genericDecode, genericEncode)
 import Foreign.Generic (encodeJSON)
+import Foreign.Generic.Types (Options)
+import Jwt (verify)
 import Models (User)
 import Node.Encoding (Encoding(..))
 import Node.FS.Aff (readTextFile)
@@ -30,9 +38,7 @@ import Routing (match)
 import Routing.Match (Match, lit, nonempty, num, str, params)
 import Simple.JSON as JSON
 
-import Data.Bifunctor (lmap)
-import Control.Monad.Except (runExcept)
-
+import UUID as UUID
 
 read' :: forall a. JSON.ReadForeign a => Foreign -> Either Error a
 read' = lmap (error <<< show) <<< JSON.read
@@ -112,15 +118,49 @@ main = launchAff_ $ do
   contents <- readTextFile UTF8 "./config/dbDev.json"
 
   liftEffect $ do
+    -- verify token secret (\x -> do
+    --   logShow $ (unsafeFromForeign x :: JwtPayload)
+    -- )
+
+    log $ (UUID.get)
+
     -- log ("\nconfig contents: " <> contents)
 
     case getDbConfig contents of
       Left error -> do
         log error
       Right clientConfig -> do
-        -- log $ "\ndatabase: " <> (show clientConfig.database)
         dbPool <- Pg.mkPool $ Pg.connectionInfoFromConfig clientConfig Pg.defaultPoolConfig
 
         app <- createServer (\req res -> router req res dbPool)
         listen app { hostname: "localhost", port: 8080, backlog: Nothing } $ do
           log "Server listening on port 8080."
+
+
+token :: String
+token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6IlNhbGVzYWZyaXF1ZUFkbWluIiwiZW1haWxzIjpbeyJhZGRyZXNzIjoic2FsZXNhZnJpcXVlQHRyYWRlZGVwb3QuY28iLCJ2ZXJpZmllZCI6ZmFsc2V9XSwicHJvZmlsZSI6eyJmdWxsTmFtZSI6IlNhbGVzQWZyaXF1ZSBBZG1pbiIsImZpcnN0bmFtZSI6IlNhbGVzQWZyaXF1ZSIsImxhc3RuYW1lIjoiQWRtaW4iLCJwaG9uZU51bWJlciI6bnVsbCwiaGFzUmV0YWlsU3RvcmUiOmZhbHNlfSwic2FsZXNQcm9maWxlIjp7InNhbGVzQXJlYXMiOm51bGwsInBvc2l0aW9uIjoibnlZaHNZOFFheDVxdmF0b1AifSwicm9sZXMiOnsiX19nbG9iYWxfcm9sZXNfXyI6WyJvcmRlcnMvY3JlYXRlIl19LCJ0ZEFkbWluIjpmYWxzZSwiaWF0IjoxNTE1MDAyNDE1fQ.VbOOrPALKBsNDdhUdbVHO1hztwQn9r-XgWjYek3I6FY"
+
+secret :: String
+secret = "GXDRwg6y7oMqFTNHq5D8TY42QSNpstAvh8Xvev969Mh6X932pZn"
+
+mainCallback :: Effect Unit
+mainCallback = verify token secret (\x -> do
+  logShow $ (unsafeFromForeign x :: JwtPayload)
+)
+
+newtype JwtPayload = JwtPayload {
+  username :: String
+}
+
+derive instance genericJwtPayload :: Generic JwtPayload _
+
+-- derive newtype instance foreignJsonJwtPayload :: JSON.ReadForeign JwtPayload
+
+instance showForeignJwtPayload :: Show JwtPayload
+  where show = genericShow
+
+-- instance decodeJwtPayload :: Decode JwtPayload where
+--   decode = genericDecode jsonOpts
+
+-- jsonOpts :: Options
+-- jsonOpts = defaultOptions { unwrapSingleConstructors = true }

@@ -3,7 +3,8 @@
   "description": "Purescript replica of a project I wrote in vanilla Javascript",
   "dependencies": {
     "decimal.js": "^10.0.0",
+    "jsonwebtoken": "^8.3.0",
     "pg": "^6.4.2",
-    "uuid": "^3.2.1"
+    "uuid": "^3.3.2"
   }
 }
