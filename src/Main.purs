@@ -37,10 +37,8 @@ import Routing (match)
 import Routing.Match (Match, lit, nonempty, num, str, params)
 import Simple.JSON as JSON
 
-import FFI.Jwt (verify)
 import FFI.UUID as UUID
 import FFI.BCrypt as BCrypt
-
 
 
 read' :: forall a. JSON.ReadForeign a => Foreign -> Either Error a
@@ -121,11 +119,7 @@ main = launchAff_ $ do
   contents <- readTextFile UTF8 "./config/dbDev.json"
 
   liftEffect $ do
-    -- verify token secret (\x -> do
-    --   logShow $ (unsafeFromForeign x :: JwtPayload)
-    -- )
-
-    log $ "New uuid: " <> (UUID.get)
+    log $ "New uuid: " <> (UUID.new)
 
     let newPasswordHash = BCrypt.getPasswordHash "asdffdsa"
     log $ "Password hash: " <> newPasswordHash
@@ -143,32 +137,3 @@ main = launchAff_ $ do
         app <- createServer (\req res -> router req res dbPool)
         listen app { hostname: "localhost", port: 8080, backlog: Nothing } $ do
           log "Server listening on port 8080."
-
-
-token :: String
-token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6IlNhbGVzYWZyaXF1ZUFkbWluIiwiZW1haWxzIjpbeyJhZGRyZXNzIjoic2FsZXNhZnJpcXVlQHRyYWRlZGVwb3QuY28iLCJ2ZXJpZmllZCI6ZmFsc2V9XSwicHJvZmlsZSI6eyJmdWxsTmFtZSI6IlNhbGVzQWZyaXF1ZSBBZG1pbiIsImZpcnN0bmFtZSI6IlNhbGVzQWZyaXF1ZSIsImxhc3RuYW1lIjoiQWRtaW4iLCJwaG9uZU51bWJlciI6bnVsbCwiaGFzUmV0YWlsU3RvcmUiOmZhbHNlfSwic2FsZXNQcm9maWxlIjp7InNhbGVzQXJlYXMiOm51bGwsInBvc2l0aW9uIjoibnlZaHNZOFFheDVxdmF0b1AifSwicm9sZXMiOnsiX19nbG9iYWxfcm9sZXNfXyI6WyJvcmRlcnMvY3JlYXRlIl19LCJ0ZEFkbWluIjpmYWxzZSwiaWF0IjoxNTE1MDAyNDE1fQ.VbOOrPALKBsNDdhUdbVHO1hztwQn9r-XgWjYek3I6FY"
-
-secret :: String
-secret = "GXDRwg6y7oMqFTNHq5D8TY42QSNpstAvh8Xvev969Mh6X932pZn"
-
-mainCallback :: Effect Unit
-mainCallback = verify token secret (\x -> do
-  logShow $ (unsafeFromForeign x :: JwtPayload)
-)
-
-newtype JwtPayload = JwtPayload {
-  username :: String
-}
-
-derive instance genericJwtPayload :: Generic JwtPayload _
-
--- derive newtype instance foreignJsonJwtPayload :: JSON.ReadForeign JwtPayload
-
-instance showForeignJwtPayload :: Show JwtPayload
-  where show = genericShow
-
--- instance decodeJwtPayload :: Decode JwtPayload where
---   decode = genericDecode jsonOpts
-
--- jsonOpts :: Options
--- jsonOpts = defaultOptions { unwrapSingleConstructors = true }

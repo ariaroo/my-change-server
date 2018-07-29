@@ -1,3 +1,3 @@
-module FFI.UUID (get) where
+module FFI.UUID (new) where
 
-foreign import get :: String
+foreign import new :: String

@@ -3,4 +3,4 @@
 const uuidv4 = require('uuid/v4');
 
 
-exports.get = uuidv4();
+exports.new = uuidv4();
