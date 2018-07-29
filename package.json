@@ -1,10 +1,11 @@
 {
-  "name": "my-change-server",
+  "name": "purescript-node-server",
   "description": "Purescript replica of a project I wrote in vanilla Javascript",
   "dependencies": {
     "bcrypt": "^3.0.0",
     "decimal.js": "^10.0.0",
     "jsonwebtoken": "^8.3.0",
+    "knex": "^0.15.2",
     "pg": "^6.4.2",
     "uuid": "^3.3.2"
   }
