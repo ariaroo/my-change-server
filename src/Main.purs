@@ -40,6 +40,7 @@ import Utils as Utils
 import FFI.UUID as UUID
 import FFI.BCrypt as BCrypt
 
+import Models (User(..))
 import Router as Router
 
 
@@ -56,8 +57,7 @@ main = launchAff_ $ do
 
     log $ "Password hash: " <> newPasswordHash
     log $ "Is password correct: " <> show isPasswordCorrect
-
-    log ("\nconfig contents: " <> contents)
+    log ""
 
     case Utils.getDbConfig contents of
       Left error -> do

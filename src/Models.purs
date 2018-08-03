@@ -1,7 +1,7 @@
-module Models (User) where
+module Models (User(User), getUserJwtPayload) where
 
 import Prelude
-import Data.Maybe
+import Data.Maybe (Maybe(..))
 
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
@@ -14,13 +14,13 @@ import Simple.JSON as JSON
 
 newtype User = User {
   id :: Int, 
-  user_uuid :: Maybe String,
+  uuid :: Maybe String,
   first_name :: Maybe String, 
   last_name :: Maybe String,
   email_address :: Maybe String,
   is_email_address_verified :: Maybe Boolean, 
   phone_number :: Maybe String,
-  transaction_passcode_hash :: Maybe Boolean, 
+  transaction_passcode_hash :: Maybe String, 
   image_url :: Maybe String,
   cloudinary_image_public_id :: Maybe String,
   is_enabled :: Maybe Boolean
@@ -39,3 +39,12 @@ instance encodeUser :: Encode User where
 
 jsonOpts :: Options
 jsonOpts = defaultOptions { unwrapSingleConstructors = true }
+
+
+type UserJwt = { id :: Maybe Int, uuid :: Maybe String}
+
+getUserJwtPayload :: User -> UserJwt
+getUserJwtPayload (User { id, uuid }) = 
+  case uuid of 
+    Just uid -> {id: Just id, uuid: Just uid}
+    Nothing -> {id: Nothing, uuid: Nothing}
